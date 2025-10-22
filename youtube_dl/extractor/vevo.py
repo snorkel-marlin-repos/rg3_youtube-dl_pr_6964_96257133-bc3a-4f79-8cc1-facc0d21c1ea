@@ -1,16 +1,15 @@
 from __future__ import unicode_literals
 
 import re
+import xml.etree.ElementTree
 
 from .common import InfoExtractor
 from ..compat import (
-    compat_etree_fromstring,
-    compat_urlparse,
+    compat_urllib_request,
 )
 from ..utils import (
     ExtractorError,
     int_or_none,
-    sanitized_Request,
 )
 
 
@@ -70,22 +69,11 @@ class VevoIE(InfoExtractor):
         'params': {
             'skip_download': 'true',
         }
-    }, {
-        'note': 'No video_info',
-        'url': 'http://www.vevo.com/watch/k-camp-1/Till-I-Die/USUV71503000',
-        'md5': '8b83cc492d72fc9cf74a02acee7dc1b0',
-        'info_dict': {
-            'id': 'USUV71503000',
-            'ext': 'mp4',
-            'title': 'Till I Die - K Camp ft. T.I.',
-            'duration': 193,
-        },
-        'expected_warnings': ['Unable to download SMIL file'],
     }]
     _SMIL_BASE_URL = 'http://smil.lvl3.vevo.com/'
 
     def _real_initialize(self):
-        req = sanitized_Request(
+        req = compat_urllib_request.Request(
             'http://www.vevo.com/auth', data=b'')
         webpage = self._download_webpage(
             req, None,
@@ -95,17 +83,11 @@ class VevoIE(InfoExtractor):
         if webpage is False:
             self._oauth_token = None
         else:
-            if 'THIS PAGE IS CURRENTLY UNAVAILABLE IN YOUR REGION' in webpage:
-                raise ExtractorError('%s said: This page is currently unavailable in your region.' % self.IE_NAME, expected=True)
-
             self._oauth_token = self._search_regex(
                 r'access_token":\s*"([^"]+)"',
                 webpage, 'access token', fatal=False)
 
     def _formats_from_json(self, video_info):
-        if not video_info:
-            return []
-
         last_version = {'version': -1}
         for version in video_info['videoVersions']:
             # These are the HTTP downloads, other types are for different manifests
@@ -115,7 +97,7 @@ class VevoIE(InfoExtractor):
         if last_version['version'] == -1:
             raise ExtractorError('Unable to extract last version of the video')
 
-        renditions = compat_etree_fromstring(last_version['data'])
+        renditions = xml.etree.ElementTree.fromstring(last_version['data'])
         formats = []
         # Already sorted from worst to best quality
         for rend in renditions.findall('rendition'):
@@ -130,8 +112,9 @@ class VevoIE(InfoExtractor):
             })
         return formats
 
-    def _formats_from_smil(self, smil_doc):
+    def _formats_from_smil(self, smil_xml):
         formats = []
+        smil_doc = xml.etree.ElementTree.fromstring(smil_xml.encode('utf-8'))
         els = smil_doc.findall('.//{http://www.w3.org/2001/SMIL20/Language}video')
         for el in els:
             src = el.attrib['src']
@@ -164,14 +147,14 @@ class VevoIE(InfoExtractor):
             })
         return formats
 
-    def _download_api_formats(self, video_id, video_url):
+    def _download_api_formats(self, video_id):
         if not self._oauth_token:
             self._downloader.report_warning(
                 'No oauth token available, skipping API HLS download')
             return []
 
-        api_url = compat_urlparse.urljoin(video_url, '//apiv2.vevo.com/video/%s/streams/hls?token=%s' % (
-            video_id, self._oauth_token))
+        api_url = 'https://apiv2.vevo.com/video/%s/streams/hls?token=%s' % (
+            video_id, self._oauth_token)
         api_data = self._download_json(
             api_url, video_id,
             note='Downloading HLS formats',
@@ -185,25 +168,17 @@ class VevoIE(InfoExtractor):
             preference=0)
 
     def _real_extract(self, url):
-        video_id = self._match_id(url)
-
-        webpage = None
+        mobj = re.match(self._VALID_URL, url)
+        video_id = mobj.group('id')
 
         json_url = 'http://videoplayer.vevo.com/VideoService/AuthenticateVideo?isrc=%s' % video_id
         response = self._download_json(json_url, video_id)
-        video_info = response['video'] or {}
+        video_info = response['video']
 
-        if not video_info and response.get('statusCode') != 909:
+        if not video_info:
             if 'statusMessage' in response:
                 raise ExtractorError('%s said: %s' % (self.IE_NAME, response['statusMessage']), expected=True)
             raise ExtractorError('Unable to extract videos')
-
-        if not video_info:
-            if url.startswith('vevo:'):
-                raise ExtractorError('Please specify full Vevo URL for downloading', expected=True)
-            webpage = self._download_webpage(url, video_id)
-
-        title = video_info.get('title') or self._og_search_title(webpage)
 
         formats = self._formats_from_json(video_info)
 
@@ -216,11 +191,11 @@ class VevoIE(InfoExtractor):
             age_limit = None
 
         # Download via HLS API
-        formats.extend(self._download_api_formats(video_id, url))
+        formats.extend(self._download_api_formats(video_id))
 
         # Download SMIL
         smil_blocks = sorted((
-            f for f in video_info.get('videoVersions', [])
+            f for f in video_info['videoVersions']
             if f['sourceType'] == 13),
             key=lambda f: f['version'])
         smil_url = '%s/Video/V2/VFILE/%s/%sr.smil' % (
@@ -232,26 +207,23 @@ class VevoIE(InfoExtractor):
             if smil_url_m is not None:
                 smil_url = smil_url_m
         if smil_url:
-            smil_doc = self._download_smil(smil_url, video_id, fatal=False)
-            if smil_doc:
-                formats.extend(self._formats_from_smil(smil_doc))
+            smil_xml = self._download_webpage(
+                smil_url, video_id, 'Downloading SMIL info', fatal=False)
+            if smil_xml:
+                formats.extend(self._formats_from_smil(smil_xml))
 
         self._sort_formats(formats)
-        timestamp = int_or_none(self._search_regex(
+        timestamp_ms = int_or_none(self._search_regex(
             r'/Date\((\d+)\)/',
-            video_info['launchDate'], 'launch date', fatal=False),
-            scale=1000) if video_info else None
-
-        duration = video_info.get('duration') or int_or_none(
-            self._html_search_meta('video:duration', webpage))
+            video_info['launchDate'], 'launch date', fatal=False))
 
         return {
             'id': video_id,
-            'title': title,
+            'title': video_info['title'],
             'formats': formats,
-            'thumbnail': video_info.get('imageUrl'),
-            'timestamp': timestamp,
-            'uploader': video_info['mainArtists'][0]['artistName'] if video_info else None,
-            'duration': duration,
+            'thumbnail': video_info['imageUrl'],
+            'timestamp': timestamp_ms // 1000,
+            'uploader': video_info['mainArtists'][0]['artistName'],
+            'duration': video_info['duration'],
             'age_limit': age_limit,
         }

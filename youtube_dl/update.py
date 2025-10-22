@@ -9,8 +9,11 @@ import subprocess
 import sys
 from zipimport import zipimporter
 
-from .utils import encode_compat_str
-
+from .compat import (
+    compat_str,
+    compat_urllib_request,
+)
+from .utils import make_HTTPS_handler
 from .version import __version__
 
 
@@ -44,7 +47,7 @@ def rsa_verify(message, signature, key):
     return True
 
 
-def update_self(to_screen, verbose, opener):
+def update_self(to_screen, verbose):
     """Update the program file with the latest version from the repository"""
 
     UPDATE_URL = "https://rg3.github.io/youtube-dl/update/"
@@ -56,12 +59,15 @@ def update_self(to_screen, verbose, opener):
         to_screen('It looks like you installed youtube-dl with a package manager, pip, setup.py or a tarball. Please use that to update.')
         return
 
+    https_handler = make_HTTPS_handler({})
+    opener = compat_urllib_request.build_opener(https_handler)
+
     # Check if there is a new version
     try:
         newversion = opener.open(VERSION_URL).read().decode('utf-8').strip()
     except Exception:
         if verbose:
-            to_screen(encode_compat_str(traceback.format_exc()))
+            to_screen(compat_str(traceback.format_exc()))
         to_screen('ERROR: can\'t find the current version. Please try again later.')
         return
     if newversion == __version__:
@@ -74,7 +80,7 @@ def update_self(to_screen, verbose, opener):
         versions_info = json.loads(versions_info)
     except Exception:
         if verbose:
-            to_screen(encode_compat_str(traceback.format_exc()))
+            to_screen(compat_str(traceback.format_exc()))
         to_screen('ERROR: can\'t obtain versions info. Please try again later.')
         return
     if 'signature' not in versions_info:
@@ -123,7 +129,7 @@ def update_self(to_screen, verbose, opener):
             urlh.close()
         except (IOError, OSError):
             if verbose:
-                to_screen(encode_compat_str(traceback.format_exc()))
+                to_screen(compat_str(traceback.format_exc()))
             to_screen('ERROR: unable to download latest version')
             return
 
@@ -137,7 +143,7 @@ def update_self(to_screen, verbose, opener):
                 outf.write(newcontent)
         except (IOError, OSError):
             if verbose:
-                to_screen(encode_compat_str(traceback.format_exc()))
+                to_screen(compat_str(traceback.format_exc()))
             to_screen('ERROR: unable to write the new version')
             return
 
@@ -157,7 +163,7 @@ start /b "" cmd /c del "%%~f0"&exit /b"
             return  # Do not show premature success messages
         except (IOError, OSError):
             if verbose:
-                to_screen(encode_compat_str(traceback.format_exc()))
+                to_screen(compat_str(traceback.format_exc()))
             to_screen('ERROR: unable to overwrite current version')
             return
 
@@ -169,7 +175,7 @@ start /b "" cmd /c del "%%~f0"&exit /b"
             urlh.close()
         except (IOError, OSError):
             if verbose:
-                to_screen(encode_compat_str(traceback.format_exc()))
+                to_screen(compat_str(traceback.format_exc()))
             to_screen('ERROR: unable to download latest version')
             return
 
@@ -183,7 +189,7 @@ start /b "" cmd /c del "%%~f0"&exit /b"
                 outf.write(newcontent)
         except (IOError, OSError):
             if verbose:
-                to_screen(encode_compat_str(traceback.format_exc()))
+                to_screen(compat_str(traceback.format_exc()))
             to_screen('ERROR: unable to overwrite current version')
             return
 

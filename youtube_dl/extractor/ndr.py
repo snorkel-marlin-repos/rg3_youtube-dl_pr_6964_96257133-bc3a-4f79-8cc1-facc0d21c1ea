@@ -14,8 +14,7 @@ from ..utils import (
 
 class NDRBaseIE(InfoExtractor):
     def _real_extract(self, url):
-        mobj = re.match(self._VALID_URL, url)
-        display_id = next(group for group in mobj.groups() if group)
+        display_id = self._match_id(url)
         webpage = self._download_webpage(url, display_id)
         return self._extract_embed(webpage, display_id)
 
@@ -23,7 +22,7 @@ class NDRBaseIE(InfoExtractor):
 class NDRIE(NDRBaseIE):
     IE_NAME = 'ndr'
     IE_DESC = 'NDR.de - Norddeutscher Rundfunk'
-    _VALID_URL = r'https?://www\.ndr\.de/(?:[^/]+/)*(?P<id>[^/?#]+),[\da-z]+\.html'
+    _VALID_URL = r'https?://www\.ndr\.de/(?:[^/]+/)+(?P<id>[^/?#]+),[\da-z]+\.html'
     _TESTS = [{
         # httpVideo, same content id
         'url': 'http://www.ndr.de/fernsehen/Party-Poette-und-Parade,hafengeburtstag988.html',
@@ -78,9 +77,6 @@ class NDRIE(NDRBaseIE):
         'params': {
             'skip_download': True,
         },
-    }, {
-        'url': 'https://www.ndr.de/Fettes-Brot-Ferris-MC-und-Thees-Uhlmann-live-on-stage,festivalsommer116.html',
-        'only_matching': True,
     }]
 
     def _extract_embed(self, webpage, display_id):
@@ -88,10 +84,10 @@ class NDRIE(NDRBaseIE):
             'embedURL', webpage, 'embed URL', fatal=True)
         description = self._search_regex(
             r'<p[^>]+itemprop="description">([^<]+)</p>',
-            webpage, 'description', default=None) or self._og_search_description(webpage)
+            webpage, 'description', fatal=False)
         timestamp = parse_iso8601(
             self._search_regex(
-                r'<span[^>]+itemprop="(?:datePublished|uploadDate)"[^>]+content="([^"]+)"',
+                r'<span itemprop="datePublished" content="([^"]+)">',
                 webpage, 'upload date', fatal=False))
         return {
             '_type': 'url_transparent',
@@ -105,7 +101,7 @@ class NDRIE(NDRBaseIE):
 class NJoyIE(NDRBaseIE):
     IE_NAME = 'njoy'
     IE_DESC = 'N-JOY'
-    _VALID_URL = r'https?://www\.n-joy\.de/(?:[^/]+/)*(?:(?P<display_id>[^/?#]+),)?(?P<id>[\da-z]+)\.html'
+    _VALID_URL = r'https?://www\.n-joy\.de/(?:[^/]+/)+(?P<id>[^/?#]+),[\da-z]+\.html'
     _TESTS = [{
         # httpVideo, same content id
         'url': 'http://www.n-joy.de/entertainment/comedy/comedy_contest/Benaissa-beim-NDR-Comedy-Contest,comedycontest2480.html',
@@ -140,9 +136,6 @@ class NJoyIE(NDRBaseIE):
         'params': {
             'skip_download': True,
         },
-    }, {
-        'url': 'http://www.n-joy.de/radio/webradio/morningshow209.html',
-        'only_matching': True,
     }]
 
     def _extract_embed(self, webpage, display_id):
@@ -238,7 +231,7 @@ class NDREmbedBaseIE(InfoExtractor):
 
 class NDREmbedIE(NDREmbedBaseIE):
     IE_NAME = 'ndr:embed'
-    _VALID_URL = r'https?://www\.ndr\.de/(?:[^/]+/)*(?P<id>[\da-z]+)-(?:player|externalPlayer)\.html'
+    _VALID_URL = r'https?://www\.ndr\.de/(?:[^/]+/)+(?P<id>[\da-z]+)-(?:player|externalPlayer)\.html'
     _TESTS = [{
         'url': 'http://www.ndr.de/fernsehen/sendungen/ndr_aktuell/ndraktuell28488-player.html',
         'md5': '8b9306142fe65bbdefb5ce24edb6b0a9',
@@ -332,7 +325,7 @@ class NDREmbedIE(NDREmbedBaseIE):
 
 class NJoyEmbedIE(NDREmbedBaseIE):
     IE_NAME = 'njoy:embed'
-    _VALID_URL = r'https?://www\.n-joy\.de/(?:[^/]+/)*(?P<id>[\da-z]+)-(?:player|externalPlayer)_[^/]+\.html'
+    _VALID_URL = r'https?://www\.n-joy\.de/(?:[^/]+/)+(?P<id>[\da-z]+)-(?:player|externalPlayer)_[^/]+\.html'
     _TESTS = [{
         # httpVideo
         'url': 'http://www.n-joy.de/events/reeperbahnfestival/doku948-player_image-bc168e87-5263-4d6d-bd27-bb643005a6de_theme-n-joy.html',

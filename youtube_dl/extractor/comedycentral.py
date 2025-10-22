@@ -151,7 +151,12 @@ class ComedyCentralShowsIE(MTVServicesInfoExtractor):
         mobj = re.match(self._VALID_URL, url)
 
         if mobj.group('shortname'):
-            return self.url_result('http://www.cc.com/shows/the-daily-show-with-trevor-noah/full-episodes')
+            if mobj.group('shortname') in ('tds', 'thedailyshow'):
+                url = 'http://thedailyshow.cc.com/full-episodes/'
+            else:
+                url = 'http://thecolbertreport.cc.com/full-episodes/'
+            mobj = re.match(self._VALID_URL, url, re.VERBOSE)
+            assert mobj is not None
 
         if mobj.group('clip'):
             if mobj.group('videotitle'):
