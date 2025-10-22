@@ -9,7 +9,6 @@ from ..utils import (
     int_or_none,
     unified_strdate,
     OnDemandPagedList,
-    xpath_text,
 )
 
 
@@ -20,11 +19,13 @@ def extract_from_xml_url(ie, video_id, xml_url):
         errnote='Failed to download video info')
 
     title = doc.find('.//information/title').text
-    description = xpath_text(doc, './/information/detail', 'description')
-    duration = int_or_none(xpath_text(doc, './/details/lengthSec', 'duration'))
-    uploader = xpath_text(doc, './/details/originChannelTitle', 'uploader')
-    uploader_id = xpath_text(doc, './/details/originChannelId', 'uploader id')
-    upload_date = unified_strdate(xpath_text(doc, './/details/airtime', 'upload date'))
+    description = doc.find('.//information/detail').text
+    duration = int(doc.find('.//details/lengthSec').text)
+    uploader_node = doc.find('.//details/originChannelTitle')
+    uploader = None if uploader_node is None else uploader_node.text
+    uploader_id_node = doc.find('.//details/originChannelId')
+    uploader_id = None if uploader_id_node is None else uploader_id_node.text
+    upload_date = unified_strdate(doc.find('.//details/airtime').text)
 
     def xml_to_format(fnode):
         video_url = fnode.find('url').text
@@ -39,14 +40,15 @@ def extract_from_xml_url(ie, video_id, xml_url):
         ext = format_m.group('container')
         proto = format_m.group('proto').lower()
 
-        quality = xpath_text(fnode, './quality', 'quality')
-        abr = int_or_none(xpath_text(fnode, './audioBitrate', 'abr'), 1000)
-        vbr = int_or_none(xpath_text(fnode, './videoBitrate', 'vbr'), 1000)
+        quality = fnode.find('./quality').text
+        abr = int(fnode.find('./audioBitrate').text) // 1000
+        vbr_node = fnode.find('./videoBitrate')
+        vbr = None if vbr_node is None else int(vbr_node.text) // 1000
 
-        width = int_or_none(xpath_text(fnode, './width', 'width'))
-        height = int_or_none(xpath_text(fnode, './height', 'height'))
-
-        filesize = int_or_none(xpath_text(fnode, './filesize', 'filesize'))
+        width_node = fnode.find('./width')
+        width = None if width_node is None else int_or_none(width_node.text)
+        height_node = fnode.find('./height')
+        height = None if height_node is None else int_or_none(height_node.text)
 
         format_note = ''
         if not format_note:
@@ -62,30 +64,11 @@ def extract_from_xml_url(ie, video_id, xml_url):
             'vbr': vbr,
             'width': width,
             'height': height,
-            'filesize': filesize,
+            'filesize': int_or_none(fnode.find('./filesize').text),
             'format_note': format_note,
             'protocol': proto,
             '_available': is_available,
         }
-
-    def xml_to_thumbnails(fnode):
-        thumbnails = []
-        for node in fnode:
-            thumbnail_url = node.text
-            if not thumbnail_url:
-                continue
-            thumbnail = {
-                'url': thumbnail_url,
-            }
-            if 'key' in node.attrib:
-                m = re.match('^([0-9]+)x([0-9]+)$', node.attrib['key'])
-                if m:
-                    thumbnail['width'] = int(m.group(1))
-                    thumbnail['height'] = int(m.group(2))
-            thumbnails.append(thumbnail)
-        return thumbnails
-
-    thumbnails = xml_to_thumbnails(doc.findall('.//teaserimages/teaserimage'))
 
     format_nodes = doc.findall('.//formitaeten/formitaet')
     formats = list(filter(
@@ -98,7 +81,6 @@ def extract_from_xml_url(ie, video_id, xml_url):
         'title': title,
         'description': description,
         'duration': duration,
-        'thumbnails': thumbnails,
         'uploader': uploader,
         'uploader_id': uploader_id,
         'upload_date': upload_date,

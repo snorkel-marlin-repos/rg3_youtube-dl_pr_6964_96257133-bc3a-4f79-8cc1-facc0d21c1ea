@@ -9,11 +9,9 @@ from ..utils import ExtractorError
 
 class ZingMp3BaseInfoExtractor(InfoExtractor):
 
-    def _extract_item(self, item, fatal=True):
+    def _extract_item(self, item):
         error_message = item.find('./errormessage').text
         if error_message:
-            if not fatal:
-                return
             raise ExtractorError(
                 '%s returned error: %s' % (self.IE_NAME, error_message),
                 expected=True)
@@ -45,9 +43,7 @@ class ZingMp3BaseInfoExtractor(InfoExtractor):
             entries = []
 
             for i, item in enumerate(items, 1):
-                entry = self._extract_item(item, fatal=False)
-                if not entry:
-                    continue
+                entry = self._extract_item(item)
                 entry['id'] = '%s-%d' % (id, i)
                 entries.append(entry)
 
@@ -89,7 +85,7 @@ class ZingMp3SongIE(ZingMp3BaseInfoExtractor):
 
 
 class ZingMp3AlbumIE(ZingMp3BaseInfoExtractor):
-    _VALID_URL = r'https?://mp3\.zing\.vn/(?:album|playlist)/(?P<slug>[^/]+)/(?P<album_id>\w+)\.html'
+    _VALID_URL = r'https?://mp3\.zing\.vn/album/(?P<slug>[^/]+)/(?P<album_id>\w+)\.html'
     _TESTS = [{
         'url': 'http://mp3.zing.vn/album/Lau-Dai-Tinh-Ai-Bang-Kieu-Minh-Tuyet/ZWZBWDAF.html',
         'info_dict': {
@@ -98,9 +94,6 @@ class ZingMp3AlbumIE(ZingMp3BaseInfoExtractor):
             'title': 'Lâu Đài Tình Ái - Bằng Kiều ft. Minh Tuyết | Album 320 lossless',
         },
         'playlist_count': 10,
-    }, {
-        'url': 'http://mp3.zing.vn/playlist/Duong-Hong-Loan-apollobee/IWCAACCB.html',
-        'only_matching': True,
     }]
     IE_NAME = 'zingmp3:album'
     IE_DESC = 'mp3.zing.vn albums'

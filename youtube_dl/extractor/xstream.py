@@ -42,7 +42,11 @@ class XstreamIE(InfoExtractor):
         'only_matching': True,
     }]
 
-    def _extract_video_info(self, partner_id, video_id):
+    def _real_extract(self, url):
+        mobj = re.match(self._VALID_URL, url)
+        partner_id = mobj.group('partner_id')
+        video_id = mobj.group('id')
+
         data = self._download_xml(
             'http://frontend.xstream.dk/%s/feed/video/?platform=web&id=%s'
             % (partner_id, video_id),
@@ -93,7 +97,6 @@ class XstreamIE(InfoExtractor):
             formats.append({
                 'url': link.get('href'),
                 'format_id': link.get('rel'),
-                'preference': 1,
             })
 
         thumbnails = [{
@@ -110,10 +113,3 @@ class XstreamIE(InfoExtractor):
             'formats': formats,
             'thumbnails': thumbnails,
         }
-
-    def _real_extract(self, url):
-        mobj = re.match(self._VALID_URL, url)
-        partner_id = mobj.group('partner_id')
-        video_id = mobj.group('id')
-
-        return self._extract_video_info(partner_id, video_id)

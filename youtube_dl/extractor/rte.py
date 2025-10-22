@@ -9,16 +9,16 @@ from ..utils import (
 
 
 class RteIE(InfoExtractor):
-    _VALID_URL = r'https?://(?:www\.)?rte\.ie/player/[^/]{2,3}/show/[^/]+/(?P<id>[0-9]+)'
+    _VALID_URL = r'http?://(?:www\.)?rte\.ie/player/[^/]{2,3}/show/(?P<id>[0-9]+)/'
     _TEST = {
-        'url': 'http://www.rte.ie/player/ie/show/iwitness-862/10478715/',
+        'url': 'http://www.rte.ie/player/de/show/10363114/',
         'info_dict': {
-            'id': '10478715',
+            'id': '10363114',
             'ext': 'mp4',
-            'title': 'Watch iWitness  online',
+            'title': 'One News',
             'thumbnail': 're:^https?://.*\.jpg$',
-            'description': 'iWitness : The spirit of Ireland, one voice and one minute at a time.',
-            'duration': 60.046,
+            'description': 'The One O\'Clock News followed by Weather.',
+            'duration': 436.844,
         },
         'params': {
             'skip_download': 'f4m fails with --test atm'

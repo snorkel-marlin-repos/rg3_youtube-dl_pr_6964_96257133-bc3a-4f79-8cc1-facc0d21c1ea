@@ -1,20 +1,17 @@
 from __future__ import unicode_literals
 
+import json
 import re
 
 from .common import InfoExtractor
 from ..compat import (
     compat_urlparse,
 )
-from ..utils import (
-    ExtractorError,
-    int_or_none,
-    float_or_none,
-)
+from ..utils import ExtractorError
 
 
 class UstreamIE(InfoExtractor):
-    _VALID_URL = r'https?://www\.ustream\.tv/(?P<type>recorded|embed|embed/recorded)/(?P<id>\d+)'
+    _VALID_URL = r'https?://www\.ustream\.tv/(?P<type>recorded|embed|embed/recorded)/(?P<videoID>\d+)'
     IE_NAME = 'ustream'
     _TESTS = [{
         'url': 'http://www.ustream.tv/recorded/20274954',
@@ -22,12 +19,8 @@ class UstreamIE(InfoExtractor):
         'info_dict': {
             'id': '20274954',
             'ext': 'flv',
+            'uploader': 'Young Americans for Liberty',
             'title': 'Young Americans for Liberty February 7, 2012 2:28 AM',
-            'description': 'Young Americans for Liberty February 7, 2012 2:28 AM',
-            'timestamp': 1328577035,
-            'upload_date': '20120207',
-            'uploader': 'yaliberty',
-            'uploader_id': '6780869',
         },
     }, {
         # From http://sportscanada.tv/canadagames/index.php/week2/figure-skating/444
@@ -39,21 +32,20 @@ class UstreamIE(InfoExtractor):
             'ext': 'flv',
             'title': '-CG11- Canada Games Figure Skating',
             'uploader': 'sportscanadatv',
-        },
-        'skip': 'This Pro Broadcaster has chosen to remove this video from the ustream.tv site.',
+        }
     }]
 
     def _real_extract(self, url):
         m = re.match(self._VALID_URL, url)
-        video_id = m.group('id')
+        video_id = m.group('videoID')
 
         # some sites use this embed format (see: http://github.com/rg3/youtube-dl/issues/2990)
         if m.group('type') == 'embed/recorded':
-            video_id = m.group('id')
+            video_id = m.group('videoID')
             desktop_url = 'http://www.ustream.tv/recorded/' + video_id
             return self.url_result(desktop_url, 'Ustream')
         if m.group('type') == 'embed':
-            video_id = m.group('id')
+            video_id = m.group('videoID')
             webpage = self._download_webpage(url, video_id)
             desktop_video_id = self._html_search_regex(
                 r'ContentVideoIds=\["([^"]*?)"\]', webpage, 'desktop_video_id')
@@ -61,50 +53,52 @@ class UstreamIE(InfoExtractor):
             return self.url_result(desktop_url, 'Ustream')
 
         params = self._download_json(
-            'https://api.ustream.tv/videos/%s.json' % video_id, video_id)
+            'http://cdngw.ustream.tv/rgwjson/Viewer.getVideo/' + json.dumps({
+                'brandId': 1,
+                'videoId': int(video_id),
+                'autoplay': False,
+            }), video_id)
 
-        error = params.get('error')
-        if error:
-            raise ExtractorError(
-                '%s returned error: %s' % (self.IE_NAME, error), expected=True)
+        if 'error' in params:
+            raise ExtractorError(params['error']['message'], expected=True)
 
-        video = params['video']
+        video_url = params['flv']
 
-        title = video['title']
-        filesize = float_or_none(video.get('file_size'))
+        webpage = self._download_webpage(url, video_id)
 
-        formats = [{
-            'id': video_id,
-            'url': video_url,
-            'ext': format_id,
-            'filesize': filesize,
-        } for format_id, video_url in video['media_urls'].items()]
-        self._sort_formats(formats)
+        self.report_extraction(video_id)
 
-        description = video.get('description')
-        timestamp = int_or_none(video.get('created_at'))
-        duration = float_or_none(video.get('length'))
-        view_count = int_or_none(video.get('views'))
+        video_title = self._html_search_regex(r'data-title="(?P<title>.+)"',
+                                              webpage, 'title', default=None)
 
-        uploader = video.get('owner', {}).get('username')
-        uploader_id = video.get('owner', {}).get('id')
+        if not video_title:
+            try:
+                video_title = params['moduleConfig']['meta']['title']
+            except KeyError:
+                pass
 
-        thumbnails = [{
-            'id': thumbnail_id,
-            'url': thumbnail_url,
-        } for thumbnail_id, thumbnail_url in video.get('thumbnail', {}).items()]
+        if not video_title:
+            video_title = 'Ustream video ' + video_id
+
+        uploader = self._html_search_regex(r'data-content-type="channel".*?>(?P<uploader>.*?)</a>',
+                                           webpage, 'uploader', fatal=False, flags=re.DOTALL, default=None)
+
+        if not uploader:
+            try:
+                uploader = params['moduleConfig']['meta']['userName']
+            except KeyError:
+                uploader = None
+
+        thumbnail = self._html_search_regex(r'<link rel="image_src" href="(?P<thumb>.*?)"',
+                                            webpage, 'thumbnail', fatal=False)
 
         return {
             'id': video_id,
-            'title': title,
-            'description': description,
-            'thumbnails': thumbnails,
-            'timestamp': timestamp,
-            'duration': duration,
-            'view_count': view_count,
+            'url': video_url,
+            'ext': 'flv',
+            'title': video_title,
             'uploader': uploader,
-            'uploader_id': uploader_id,
-            'formats': formats,
+            'thumbnail': thumbnail,
         }
 
 

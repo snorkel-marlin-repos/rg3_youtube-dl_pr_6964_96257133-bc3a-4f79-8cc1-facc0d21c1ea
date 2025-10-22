@@ -3,12 +3,14 @@ from __future__ import unicode_literals
 import re
 
 from .common import InfoExtractor
-from ..compat import compat_HTTPError
+from ..compat import (
+    compat_str,
+    compat_HTTPError,
+)
 from ..utils import (
     ExtractorError,
     find_xpath_attr,
     lowercase_escape,
-    smuggle_url,
     unescapeHTML,
 )
 
@@ -60,13 +62,12 @@ class NBCIE(InfoExtractor):
         theplatform_url = unescapeHTML(lowercase_escape(self._html_search_regex(
             [
                 r'(?:class="video-player video-player-full" data-mpx-url|class="player" src)="(.*?)"',
-                r'<iframe[^>]+src="((?:https?:)?//player\.theplatform\.com/[^"]+)"',
                 r'"embedURL"\s*:\s*"([^"]+)"'
             ],
             webpage, 'theplatform url').replace('_no_endcard', '').replace('\\/', '/')))
         if theplatform_url.startswith('//'):
             theplatform_url = 'http:' + theplatform_url
-        return self.url_result(smuggle_url(theplatform_url, {'source_url': url}))
+        return self.url_result(theplatform_url)
 
 
 class NBCSportsVPlayerIE(InfoExtractor):
@@ -186,7 +187,7 @@ class NBCNewsIE(InfoExtractor):
                 'title': info.find('headline').text,
                 'ext': 'flv',
                 'url': find_xpath_attr(info, 'media', 'type', 'flashVideo').text,
-                'description': info.find('caption').text,
+                'description': compat_str(info.find('caption').text),
                 'thumbnail': find_xpath_attr(info, 'media', 'type', 'thumbnail').text,
             }
         else:

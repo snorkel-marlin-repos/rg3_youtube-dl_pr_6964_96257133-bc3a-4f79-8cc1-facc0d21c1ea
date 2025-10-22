@@ -83,14 +83,6 @@ class FranceTVBaseInfoExtractor(InfoExtractor):
         if subtitle:
             title += ' - %s' % subtitle
 
-        subtitles = {}
-        subtitles_list = [{
-            'url': subformat['url'],
-            'ext': subformat.get('format'),
-        } for subformat in info.get('subtitles', []) if subformat.get('url')]
-        if subtitles_list:
-            subtitles['fr'] = subtitles_list
-
         return {
             'id': video_id,
             'title': title,
@@ -99,27 +91,20 @@ class FranceTVBaseInfoExtractor(InfoExtractor):
             'duration': int_or_none(info.get('real_duration')) or parse_duration(info['duree']),
             'timestamp': int_or_none(info['diffusion']['timestamp']),
             'formats': formats,
-            'subtitles': subtitles,
         }
 
 
 class PluzzIE(FranceTVBaseInfoExtractor):
     IE_NAME = 'pluzz.francetv.fr'
-    _VALID_URL = r'https?://(?:m\.)?pluzz\.francetv\.fr/videos/(?P<id>.+?)\.html'
+    _VALID_URL = r'https?://pluzz\.francetv\.fr/videos/(.*?)\.html'
 
     # Can't use tests, videos expire in 7 days
 
     def _real_extract(self, url):
-        display_id = self._match_id(url)
-
-        webpage = self._download_webpage(url, display_id)
-
-        video_id = self._html_search_meta(
-            'id_video', webpage, 'video id', default=None)
-        if not video_id:
-            video_id = self._search_regex(
-                r'data-diffusion=["\'](\d+)', webpage, 'video id')
-
+        title = re.match(self._VALID_URL, url).group(1)
+        webpage = self._download_webpage(url, title)
+        video_id = self._search_regex(
+            r'data-diffusion="(\d+)"', webpage, 'ID')
         return self._extract_video(video_id, 'Pluzz')
 
 
@@ -135,9 +120,6 @@ class FranceTvInfoIE(FranceTVBaseInfoExtractor):
             'title': 'Soir 3',
             'upload_date': '20130826',
             'timestamp': 1377548400,
-            'subtitles': {
-                'fr': 'mincount:2',
-            },
         },
     }, {
         'url': 'http://www.francetvinfo.fr/elections/europeennes/direct-europeennes-regardez-le-debat-entre-les-candidats-a-la-presidence-de-la-commission_600639.html',
